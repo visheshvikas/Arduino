@@ -1,12 +1,11 @@
 //This program is designed to learn the state transition rewards 
 //author - Vishesh Vikas
 //behavior/states = 0 or 1 (binary)
-//robot state transition = startState -> endState
+//robot state transition = N States
+// State 1  -> State 2 -> State 3 -> State 4 ...
 #include <MsTimer2.h>
-#include <Array.h>
 
-
-
+// Specifications of a robot
 const int noofLimbs = 3;
 int limbPins[noofLimbs] = {5,10,9};
 int incomingByte;
@@ -15,7 +14,6 @@ int startState[noofLimbs], endState[noofLimbs];
 int matSize = pow(2,noofLimbs);
 int timerFreq = 10; //ms
 int stateTimer;
-int* currentState;
 //int activeT[noofLimbs] = {
 //  2100,1200,2020};
 int activeT[noofLimbs] = {
@@ -23,9 +21,9 @@ int activeT[noofLimbs] = {
 int phiT[noofLimbs] = {
   610,1000,00};
 int maintainStrength[noofLimbs] = {
-  150, 80, 110};
+  50, 100, 40};
 int adjustT[noofLimbs] ={
-  120,120,150};
+  120,60,200};
 int cycleT, restTime;
 
 int noofReps, repCounter;
@@ -45,6 +43,9 @@ void timerFunc();
 void restFunc();
 int restCounter;
 
+int totalNoofStates, theStatesInt[10], theStatesBin[10][noofLimbs];
+int theCurrentStateCounter;
+int* currentState;
 
 void initializeCounters()
 {
@@ -53,7 +54,9 @@ void initializeCounters()
   repCounter=0;
   restTime = 4000;
   restCounter = 0;
+  theCurrentStateCounter = 0;
 }
+
 
 void setup()
 {
@@ -73,54 +76,53 @@ void setup()
   Serial.println(matSize);
   MsTimer2::set(timerFreq, timerFunc);
   initializeCounters(); 
-
-
-  Serial.flush();
-  Serial.println("Starting State (integer) = ");
-  while(!Serial.available());
-  startStateInt = Serial.read() - 48;
-  Serial.println("End State (integer) =");   
-  while(!Serial.available());
-  endStateInt = Serial.read() -48;
-  Serial.print("So, we're moving from ");
-  dec2bin(startStateInt, startState);
-  dec2bin(endStateInt, endState);
-  printState(&startState[0]); 
-  Serial.print(" to "); 
-  printState(&endState[0]);
-  currentState = startState;
-  for(int ii=0; ii<noofLimbs; ii++)
+  int isComplete = 0;
+  while(isComplete==0)
   {
-    if(startState[ii]==endState[ii])
+    Serial.flush();
+    Serial.print("The total number of states = ");
+// totalNoofStates, theStatesInt[noofLimbs], theStatesBin[noofLimbs][noofLimbs];
+    while(!Serial.available());
+    totalNoofStates = Serial.read()-48;
+    Serial.println(totalNoofStates);
+    for(int ii=0;ii<totalNoofStates; ii++)
     {
-      adjustT[ii] = adjustT[ii]+80;
+      Serial.print("State "); Serial.print(ii+1); Serial.print(" : = ");
+      while(!Serial.available());
+      theStatesInt[ii] = Serial.read()-48;
+      dec2bin(theStatesInt[ii], theStatesBin[ii]);  
+      Serial.print(theStatesInt[ii]);
+      Serial.print(" "); printState(&theStatesBin[ii][0]);
+      Serial.println("");
     }
+    Serial.println("");
+    for(int ii=0;ii<totalNoofStates;ii++)
+    {
+      printState(&theStatesBin[ii][0]); 
+      if(ii<(totalNoofStates-1))
+      {
+        Serial.print(" to ");
+      }
+    }
+    Serial.println("");
+    Serial.print("Does that transition look good? (1 if Yes)");
+    while(!Serial.available());
+    isComplete = Serial.read()-48;
+    if(isComplete==1) {Serial.println(" Yes");}
+    else {Serial.println(" No");}
   }
+
+  currentState = theStatesBin[0];
+
   MsTimer2::start();
-  Serial.println("");
 
   
 }
 
 void loop()
 {
-  //  while(!Serial.available());
-//  Serial.flush();
-//  Serial.println("Starting State (integer) = ");
-//  while(!Serial.available());
-//  startStateInt = Serial.read() - 48;
-//  Serial.println("End State (integer) =");   
-//  while(!Serial.available());
-//  endStateInt = Serial.read() -48;
-//  Serial.print("So, we're moving from ");
-//  dec2bin(startStateInt, startState);
-//  dec2bin(endStateInt, endState);
-//  printState(&startState[0]); 
-//  Serial.print(" to "); 
-//  printState(&endState[0]);
-//  currentState = startState;
-//  MsTimer2::start();
-//  Serial.println("");
+  // Nothing is in the loop function.
+  // Everything is done using timer function.
 }
 
 void timerFunc()
@@ -133,8 +135,9 @@ void timerFunc()
       if(stateTimer==phiT[ii])
       {
         turnPinOn(limbPins[ii]);
+//        Serial.print(ii); Serial.print("="); Serial.print(stateTimer);
       }
-      else if((currentState==endState)&(endState[ii]==startState[ii]))
+      else if(ii>0 &(currentState[ii]==theStatesBin[theCurrentStateCounter-11][ii]))
       {
         //        Serial.println("Maintain");
         maintainPin(limbPins[ii], maintainStrength[ii]);
@@ -144,27 +147,36 @@ void timerFunc()
   stateTimer =stateTimer+timerFreq;  
   if(stateTimer==cycleT)
   {
-    if(currentState==endState)
+//    Serial.print("stateTimer = "); Serial.println(stateTimer);
+    // If cycleT is over
+    if(currentState==theStatesBin[totalNoofStates])
     {
+      Serial.println("Alls is done");
       turnAllOff();
-      repCounter = repCounter+1;
-      currentState = startState;
       stateTimer = 0;
-//      for(int ii=0; ii<noofLimbs; ii++)
-//      {
-//        activeT[ii] = activeT[ii] - adjustT[ii];
-//      }
-      Serial.println(repCounter);
       MsTimer2::stop();
-      MsTimer2::set(restTime,restFunc);
-      MsTimer2::start();
     }
-    else if(currentState==startState)
+    else //if(currentState==theStatesBin[theCurrentStateCounter])
     {
       stateTimer=0;
-      currentState = endState;
+//      Serial.println("Switching!");
+      for(int jj=0;jj<noofLimbs; jj++)
+      {
+//      Serial.println(theCurrentStateCounter);
+//        Serial.print(theCurrentStateCounter); Serial.print(" ");Serial.println(jj);
+//        Serial.print(currentState[jj]); Serial.print("vs"); Serial.println(theStatesBin[theCurrentStateCounter+1][jj]);
+        if((currentState[jj]==theStatesBin[theCurrentStateCounter+1][jj])&(currentState[jj]==1))
+        {
+          Serial.print("Adjusted Leg "); Serial.println(jj);
+          phiT[jj] = phiT[jj] + adjustT[jj];
+        }
+      }
+      Serial.print("Going from "); printState(currentState);
+
+      currentState = theStatesBin[theCurrentStateCounter+1];
+      theCurrentStateCounter = theCurrentStateCounter+1;
+      Serial.print(" to "); printState(currentState); Serial.println("");
       turnAllOff();
-      Serial.println("Switching!");
     }
   }
 
